@@ -2,3 +2,7 @@
 - **Timestamp:** July 10, 2026 - 23:30 IST
 - **Objective:** Configure workspace architecture, clear Vite boilerplate templates, integrate Tailwind CSS v4 pipeline, and establish the core requestAnimationFrame game loop structure using React and HTML5 Canvas.
 - **AI Tooling Used:** Gemini (Architect/Collaborator)
+
+### Milestone Update - 23:45 IST
+- **Feature implemented:** Threat vector spawning algorithms (Hallucinations & Data Bias).
+- **Technical approach:** Created an autonomous pathfinding array tracking distances relative to the canvas center coordinates. Implemented radial bounding-box collision parameters to reduce network stability upon entity containment breach.
