@@ -6,6 +6,7 @@ export default function GameCanvas() {
   const [integrity, setIntegrity] = useState(100);
   const [phase, setPhase] = useState(1); 
   const [runState, setRunState] = useState('BOOT'); 
+  const [isUiShaking, setIsUiShaking] = useState(false);
   
   const [upgradeState, setUpgradeState] = useState({
     hasCleaver: false,
@@ -39,7 +40,6 @@ export default function GameCanvas() {
     bossWarningTimer: 0,
     purgeTimer: 0,
 
-    // --- TRAINING METRICS (loss curve + network viz) ---
     frameCount: 0,
     successfulDefends: 0,
     breaches: 0,
@@ -49,7 +49,11 @@ export default function GameCanvas() {
     networkNodes: null
   });
 
-  // --- PROCEDURAL AUDIO OVER USER INTERACTION GATES ---
+  const triggerUiShake = () => {
+    setIsUiShaking(true);
+    setTimeout(() => setIsUiShaking(false), 300);
+  };
+
   const playSound = (type) => {
     try {
       const state = engineRef.current;
@@ -160,13 +164,7 @@ export default function GameCanvas() {
     state.firewallTargetRadius = 70;
     state.bossWarningTimer = 0;
     state.purgeTimer = 0;
-    state.hitStopFrames = 0;
-    state.recoilX = 0;
-    state.recoilY = 0;
-    state.fireTimer = 0;
-    state.mouse.isDown = false;
 
-    // reset training metrics
     state.frameCount = 0;
     state.successfulDefends = 0;
     state.breaches = 0;
@@ -222,6 +220,7 @@ export default function GameCanvas() {
       if (upgradeState.hasFirewall) {
         state.firewallTargetRadius = 240; 
         state.screenShake = 12;
+        triggerUiShake();
         playSound('pulse');
         for (let i = 0; i < 16; i++) {
           const a = (i / 16) * Math.PI * 2;
@@ -236,30 +235,9 @@ export default function GameCanvas() {
     
     const up = () => { engineRef.current.mouse.isDown = false; };
 
-    // touch support: mirror mouse behavior so this is playable on phones/tablets
-    const touchMove = (e) => {
-      if (e.touches && e.touches.length > 0) {
-        const r = canvas.getBoundingClientRect();
-        engineRef.current.mouse.x = e.touches[0].clientX - r.left;
-        engineRef.current.mouse.y = e.touches[0].clientY - r.top;
-      }
-      e.preventDefault();
-    };
-    const touchStart = (e) => {
-      touchMove(e);
-      down();
-    };
-    const touchEnd = (e) => {
-      up();
-      e.preventDefault();
-    };
-
     canvas.addEventListener('mousemove', move);
     canvas.addEventListener('mousedown', down);
     window.addEventListener('mouseup', up);
-    canvas.addEventListener('touchstart', touchStart, { passive: false });
-    canvas.addEventListener('touchmove', touchMove, { passive: false });
-    window.addEventListener('touchend', touchEnd, { passive: false });
 
     const spawnEnemy = (isBoss = false) => {
       const state = engineRef.current;
@@ -327,14 +305,12 @@ export default function GameCanvas() {
       }
     };
 
-    // --- BACKGROUND NEURAL NETWORK VISUALIZATION ---
     const drawNetworkBackground = (state) => {
       const nodes = state.networkNodes;
       if (!nodes) return;
       const integrityFactor = Math.max(0.15, integrity / 100);
       ctx.save();
 
-      // edges
       for (let i = 0; i < nodes.length; i++) {
         const n = nodes[i];
         const x = n.nx * canvas.width;
@@ -358,7 +334,6 @@ export default function GameCanvas() {
         }
       }
 
-      // nodes
       for (let i = 0; i < nodes.length; i++) {
         const n = nodes[i];
         const x = n.nx * canvas.width;
@@ -374,7 +349,6 @@ export default function GameCanvas() {
       ctx.restore();
     };
 
-    // --- LOSS CURVE PANEL ---
     const drawLossChart = (state) => {
       const chartX = 14;
       const chartY = canvas.height - 92;
@@ -393,7 +367,6 @@ export default function GameCanvas() {
       ctx.textAlign = 'left';
       ctx.fillText('TRAINING LOSS', chartX, chartY - 4);
 
-      // baseline
       ctx.strokeStyle = 'rgba(255,255,255,0.12)';
       ctx.beginPath();
       ctx.moveTo(chartX, chartY + chartH);
@@ -422,7 +395,6 @@ export default function GameCanvas() {
       ctx.restore();
     };
 
-    // --- MAIN CORE MATRIX PROCESSOR ---
     const loop = () => {
       const state = engineRef.current;
       const cX = canvas.width / 2;
@@ -440,29 +412,18 @@ export default function GameCanvas() {
         drawNetworkBackground(state);
         
         ctx.fillStyle = '#6366f1';
-        ctx.font = 'bold 18px monospace';
+        ctx.font = 'bold 16px monospace';
         ctx.textAlign = 'center';
-        ctx.fillText("▲ CORE DEFENSE INITIALIZATION", cX, cY - 70);
-
-        ctx.fillStyle = 'rgba(226, 232, 240, 0.85)';
+        ctx.fillText("▲ CORE DEFENSE INITIALIZATION", cX, cY - 10);
+        
+        ctx.fillStyle = 'rgba(148, 163, 184, 0.6)';
         ctx.font = '11px monospace';
-        ctx.fillText("Your core sits at the center. Threat nodes converge on it.", cX, cY - 34);
-        ctx.fillText("AIM: move your mouse / finger.  FIRE: click or hold.", cX, cY - 14);
-        ctx.fillText("Survive 3 phases. A boss spawns in phase 3 — break it to win.", cX, cY + 6);
-
-        ctx.fillStyle = '#818cf8';
-        ctx.font = '9px monospace';
-        ctx.fillText("Watch INTEGRITY (top left) — it hits 0, the run ends.", cX, cY + 30);
-
-        ctx.fillStyle = 'rgba(148, 163, 184, 0.7)';
-        ctx.font = 'bold 12px monospace';
-        ctx.fillText("▶ CLICK / TAP TO START", cX, cY + 66);
+        ctx.fillText("CLICK TO START DEFENSE ARRAY", cX, cY + 20);
         
         animId = requestAnimationFrame(loop);
         return;
       }
 
-      // FIXED PURGE WIPE: Safely processes transient structural noise and forces VICTORY display card directly
       if (runState === 'PURGE') {
         state.purgeTimer--;
         
@@ -483,7 +444,6 @@ export default function GameCanvas() {
       }
 
       state.frameCount++;
-
       state.phaseTimer++;
       if (phase === 1 && state.phaseTimer >= state.phaseDuration) {
         triggerCommanderTerminal();
@@ -509,7 +469,6 @@ export default function GameCanvas() {
         state.systemShockActive = false;
       }
 
-      // sample training loss periodically
       state.lossSampleTimer++;
       if (state.lossSampleTimer >= 20) {
         state.lossSampleTimer = 0;
@@ -646,7 +605,6 @@ export default function GameCanvas() {
           ctx.fillStyle = state.systemShockActive ? '#000000' : e.color;
         }
 
-        // READABILITY FIX: Return to circle profile with aggressive thick gold warning borders for enraged state
         ctx.beginPath();
         ctx.arc(e.x, e.y, e.size, 0, Math.PI * 2);
         ctx.fill();
@@ -684,6 +642,7 @@ export default function GameCanvas() {
         if (d < 26 + e.size) {
           state.enemies.splice(i, 1);
           state.screenShake = 22;
+          triggerUiShake();
           state.hitStopFrames = 5; 
           state.breaches++;
           state.networkFlare = 1;
@@ -729,6 +688,7 @@ export default function GameCanvas() {
               state.systemShockActive = true;
               state.systemShockTimer = 65; 
               state.screenShake = 30;
+              triggerUiShake();
               state.hitStopFrames = 14; 
               e.rageMode = true; 
               playSound('shock');
@@ -827,9 +787,6 @@ export default function GameCanvas() {
       canvas.removeEventListener('mousemove', move);
       canvas.removeEventListener('mousedown', down);
       window.removeEventListener('mouseup', up);
-      canvas.removeEventListener('touchstart', touchStart);
-      canvas.removeEventListener('touchmove', touchMove);
-      window.removeEventListener('touchend', touchEnd);
     };
   }, [phase, runState, upgradeState, integrity]);
 
@@ -838,84 +795,94 @@ export default function GameCanvas() {
   const accuracy = totalEvents > 0 ? Math.round((state.successfulDefends / totalEvents) * 100) : 100;
 
   return (
-    <div className="relative w-full h-[75vh] bg-slate-950 border-2 border-slate-900 rounded-2xl overflow-hidden font-mono select-none shadow-2xl">
+    <div className={`w-full bg-slate-950 font-mono select-none transition-transform duration-75 ${isUiShaking ? 'animate-bounce translate-y-1' : ''}`}>
       
-      <div className="absolute top-4 left-4 right-4 flex justify-between pointer-events-none z-10 text-[10px] font-bold tracking-wider text-slate-400">
-        <div className="bg-slate-950 border border-slate-900 px-3 py-1.5 rounded-lg">
-          INTEGRITY: <span className={integrity > 35 ? 'text-emerald-400' : 'text-rose-500 animate-pulse'}>{integrity}%</span>
-        </div>
-        <div className="bg-slate-950 border border-slate-900 px-3 py-1.5 rounded-lg text-indigo-400">
-          PHASE {phase}/3
-        </div>
-        <div className="bg-slate-950 border border-slate-900 px-3 py-1.5 rounded-lg text-amber-400">
-          SCORE: {score}
-        </div>
+      {/* POLISHED ML ALERT BANNER */}
+      <div className="mb-4 bg-slate-900/60 border border-amber-500/20 rounded-xl p-4 flex items-center gap-3 shadow-inner">
+        <span className="text-xl animate-pulse">⚠️</span>
+        <p className="text-xs text-slate-300 leading-relaxed tracking-wide">
+          Critical <span className="text-amber-400 font-bold">gradient explosion</span> detected in Sector 01. Adjust active model hyper-parameters and secure backplane nodes to prevent complete tracking divergence.
+        </p>
       </div>
 
-      <canvas ref={canvasRef} className="w-full h-full block cursor-crosshair" />
+      {/* GAME WINDOW CONTEXT WRAPPER WITH BOUNDARY CAPTURE */}
+      <div className="relative w-full h-[70vh] border-2 border-slate-900 rounded-2xl overflow-hidden bg-slate-950 shadow-2xl">
+        <div className="absolute top-4 left-4 right-4 flex justify-between pointer-events-none z-10 text-[10px] font-bold tracking-wider text-slate-400">
+          <div className="bg-slate-950/90 backdrop-blur border border-slate-900 px-3 py-1.5 rounded-lg">
+            INTEGRITY: <span className={integrity > 35 ? 'text-emerald-400' : 'text-rose-500 animate-pulse'}>{integrity}%</span>
+          </div>
+          <div className="bg-slate-950/90 backdrop-blur border border-slate-900 px-3 py-1.5 rounded-lg text-indigo-400">
+            PHASE {phase}/3
+          </div>
+          <div className="bg-slate-950/90 backdrop-blur border border-slate-900 px-3 py-1.5 rounded-lg text-amber-400">
+            SCORE: {score}
+          </div>
+        </div>
 
-      {runState === 'COMMANDER_TERMINAL' && (
-        <div className="absolute inset-0 bg-slate-950/90 flex flex-col justify-center items-center p-6 z-50">
-          <div className="max-w-xs w-full border border-slate-800 bg-slate-900 rounded-xl p-4 shadow-xl">
-            <h3 className="text-xs font-bold text-center text-indigo-400 tracking-wider mb-4 uppercase">CHOOSE UPGRADE INSTANTLY</h3>
+        <canvas ref={canvasRef} className="w-full h-full block cursor-crosshair object-cover" />
 
-            <div className="flex flex-col gap-2">
-              <button 
-                onClick={() => selectUpgrade(true)}
-                className="w-full text-left bg-slate-950 border border-sky-500/30 hover:border-sky-400 p-3 rounded-lg group cursor-pointer transition-colors"
-              >
-                <div className="text-xs font-bold text-sky-400">⚡ CLEAVER BUILD</div>
-                <div className="text-[10px] text-slate-400 mt-0.5 leading-snug">
-                  High burst damage. Pierce targets with heavy recoil beams.
-                </div>
+        {runState === 'COMMANDER_TERMINAL' && (
+          <div className="absolute inset-0 bg-slate-950/90 backdrop-blur-sm flex flex-col justify-center items-center p-6 z-50">
+            <div className="max-w-xs w-full border border-slate-800 bg-slate-900 rounded-xl p-4 shadow-xl">
+              <h3 className="text-xs font-bold text-center text-indigo-400 tracking-wider mb-4 uppercase">CHOOSE UPGRADE INSTANTLY</h3>
+              <div className="flex flex-col gap-2">
+                <button 
+                  onClick={() => selectUpgrade(true)}
+                  className="w-full text-left bg-slate-950 border border-sky-500/30 hover:border-sky-400 p-3 rounded-lg cursor-pointer transition-colors"
+                >
+                  <div className="text-xs font-bold text-sky-400">⚡ CLEAVER BUILD</div>
+                  <div className="text-[10px] text-slate-400 mt-0.5 leading-snug">
+                    High burst damage. Pierce targets with heavy recoil beams.
+                  </div>
+                </button>
+
+                <button 
+                  onClick={() => selectUpgrade(false)}
+                  className="w-full text-left bg-slate-950 border border-emerald-500/30 hover:border-emerald-400 p-3 rounded-lg cursor-pointer transition-colors"
+                >
+                  <div className="text-xs font-bold text-emerald-400">🛡️ FIREWALL BUILD</div>
+                  <div className="text-[10px] text-slate-400 mt-0.5 leading-snug">
+                    Spatial crowd control. Waves force threats completely back.
+                  </div>
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {runState === 'VICTORY' && (
+          <div className="absolute inset-0 bg-slate-950 flex flex-col justify-center items-center p-6 z-50">
+            <div className="max-w-xs w-full text-center text-white">
+              <h2 className="text-sm font-bold tracking-wider uppercase">MAINFRAME SECURED</h2>
+              <p className="text-[10px] text-slate-500 mt-2">Convergence achieved — the network held.</p>
+              <div className="bg-slate-900 py-3 rounded-lg my-4 text-emerald-400 font-bold text-2xl border border-slate-800">
+                {score}
+              </div>
+              <div className="text-[10px] text-slate-400 mb-4">
+                MODEL ACCURACY: <span className="text-indigo-400 font-bold">{accuracy}%</span>
+              </div>
+              <button onClick={rebootCore} className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2.5 rounded-lg text-xs tracking-wider uppercase cursor-pointer transition-colors">
+                Restart
               </button>
+            </div>
+          </div>
+        )}
 
-              <button 
-                onClick={() => selectUpgrade(false)}
-                className="w-full text-left bg-slate-950 border border-emerald-500/30 hover:border-emerald-400 p-3 rounded-lg group cursor-pointer transition-colors"
-              >
-                <div className="text-xs font-bold text-emerald-400">🛡️ FIREWALL BUILD</div>
-                <div className="text-[10px] text-slate-400 mt-0.5 leading-snug">
-                  Spatial crowd control. Waves force threats completely back.
-                </div>
+        {runState === 'GAME_OVER' && (
+          <div className="absolute inset-0 bg-slate-950 flex flex-col justify-center items-center p-6 z-50">
+            <div className="max-w-xs w-full text-center">
+              <h2 className="text-sm font-bold text-rose-500 tracking-wider uppercase">CORE COMPROMISED</h2>
+              <p className="text-[10px] text-slate-500 mt-2">Model diverged — integrity lost.</p>
+              <div className="text-[10px] text-slate-400 my-4">
+                MODEL ACCURACY: <span className="text-rose-400 font-bold">{accuracy}%</span>
+              </div>
+              <button onClick={rebootCore} className="w-full bg-rose-600 hover:bg-rose-500 text-white font-bold py-2.5 rounded-lg text-xs tracking-wider uppercase cursor-pointer transition-colors mt-2">
+                Reboot Array
               </button>
             </div>
           </div>
-        </div>
-      )}
-
-      {runState === 'VICTORY' && (
-        <div className="absolute inset-0 bg-slate-950 flex flex-col justify-center items-center p-6 z-50">
-          <div className="max-w-xs w-full text-center text-white">
-            <h2 className="text-sm font-bold tracking-wider uppercase">MAINFRAME SECURED</h2>
-            <p className="text-[10px] text-slate-500 mt-2">Convergence achieved — the network held.</p>
-            <div className="bg-slate-900 py-3 rounded-lg my-4 text-emerald-400 font-bold text-2xl border border-slate-800">
-              {score}
-            </div>
-            <div className="text-[10px] text-slate-400 mb-4">
-              MODEL ACCURACY: <span className="text-indigo-400 font-bold">{accuracy}%</span>
-            </div>
-            <button onClick={rebootCore} className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2.5 rounded-lg text-xs tracking-wider uppercase cursor-pointer transition-colors">
-              Restart
-            </button>
-          </div>
-        </div>
-      )}
-
-      {runState === 'GAME_OVER' && (
-        <div className="absolute inset-0 bg-slate-950 flex flex-col justify-center items-center p-6 z-50">
-          <div className="max-w-xs w-full text-center">
-            <h2 className="text-sm font-bold text-rose-500 tracking-wider uppercase">CORE COMPROMISED</h2>
-            <p className="text-[10px] text-slate-500 mt-2">Model diverged — integrity lost.</p>
-            <div className="text-[10px] text-slate-400 my-4">
-              MODEL ACCURACY: <span className="text-rose-400 font-bold">{accuracy}%</span>
-            </div>
-            <button onClick={rebootCore} className="w-full bg-rose-600 hover:bg-rose-500 text-white font-bold py-2.5 rounded-lg text-xs tracking-wider uppercase cursor-pointer transition-colors mt-2">
-              Reboot Array
-            </button>
-          </div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }
