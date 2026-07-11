@@ -160,6 +160,11 @@ export default function GameCanvas() {
     state.firewallTargetRadius = 70;
     state.bossWarningTimer = 0;
     state.purgeTimer = 0;
+    state.hitStopFrames = 0;
+    state.recoilX = 0;
+    state.recoilY = 0;
+    state.fireTimer = 0;
+    state.mouse.isDown = false;
 
     // reset training metrics
     state.frameCount = 0;
@@ -231,9 +236,30 @@ export default function GameCanvas() {
     
     const up = () => { engineRef.current.mouse.isDown = false; };
 
+    // touch support: mirror mouse behavior so this is playable on phones/tablets
+    const touchMove = (e) => {
+      if (e.touches && e.touches.length > 0) {
+        const r = canvas.getBoundingClientRect();
+        engineRef.current.mouse.x = e.touches[0].clientX - r.left;
+        engineRef.current.mouse.y = e.touches[0].clientY - r.top;
+      }
+      e.preventDefault();
+    };
+    const touchStart = (e) => {
+      touchMove(e);
+      down();
+    };
+    const touchEnd = (e) => {
+      up();
+      e.preventDefault();
+    };
+
     canvas.addEventListener('mousemove', move);
     canvas.addEventListener('mousedown', down);
     window.addEventListener('mouseup', up);
+    canvas.addEventListener('touchstart', touchStart, { passive: false });
+    canvas.addEventListener('touchmove', touchMove, { passive: false });
+    window.addEventListener('touchend', touchEnd, { passive: false });
 
     const spawnEnemy = (isBoss = false) => {
       const state = engineRef.current;
@@ -414,13 +440,23 @@ export default function GameCanvas() {
         drawNetworkBackground(state);
         
         ctx.fillStyle = '#6366f1';
-        ctx.font = 'bold 16px monospace';
+        ctx.font = 'bold 18px monospace';
         ctx.textAlign = 'center';
-        ctx.fillText("▲ CORE DEFENSE INITIALIZATION", cX, cY - 10);
-        
-        ctx.fillStyle = 'rgba(148, 163, 184, 0.6)';
+        ctx.fillText("▲ CORE DEFENSE INITIALIZATION", cX, cY - 70);
+
+        ctx.fillStyle = 'rgba(226, 232, 240, 0.85)';
         ctx.font = '11px monospace';
-        ctx.fillText("CLICK TO START DEFENSE ARRAY", cX, cY + 20);
+        ctx.fillText("Your core sits at the center. Threat nodes converge on it.", cX, cY - 34);
+        ctx.fillText("AIM: move your mouse / finger.  FIRE: click or hold.", cX, cY - 14);
+        ctx.fillText("Survive 3 phases. A boss spawns in phase 3 — break it to win.", cX, cY + 6);
+
+        ctx.fillStyle = '#818cf8';
+        ctx.font = '9px monospace';
+        ctx.fillText("Watch INTEGRITY (top left) — it hits 0, the run ends.", cX, cY + 30);
+
+        ctx.fillStyle = 'rgba(148, 163, 184, 0.7)';
+        ctx.font = 'bold 12px monospace';
+        ctx.fillText("▶ CLICK / TAP TO START", cX, cY + 66);
         
         animId = requestAnimationFrame(loop);
         return;
@@ -791,6 +827,9 @@ export default function GameCanvas() {
       canvas.removeEventListener('mousemove', move);
       canvas.removeEventListener('mousedown', down);
       window.removeEventListener('mouseup', up);
+      canvas.removeEventListener('touchstart', touchStart);
+      canvas.removeEventListener('touchmove', touchMove);
+      window.removeEventListener('touchend', touchEnd);
     };
   }, [phase, runState, upgradeState, integrity]);
 
