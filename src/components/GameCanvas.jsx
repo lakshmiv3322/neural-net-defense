@@ -142,6 +142,7 @@ export default function GameCanvas() {
     playSound('boot');
   };
 
+  // FIX: Complete state cleanup to prevent stuck engine flags on reload
   const rebootCore = () => {
     setScore(0);
     setIntegrity(100);
@@ -164,6 +165,13 @@ export default function GameCanvas() {
     state.firewallTargetRadius = 70;
     state.bossWarningTimer = 0;
     state.purgeTimer = 0;
+    
+    // Core engine bugfixes restored
+    state.hitStopFrames = 0;
+    state.recoilX = 0;
+    state.recoilY = 0;
+    state.fireTimer = 0;
+    state.mouse.isDown = false;
 
     state.frameCount = 0;
     state.successfulDefends = 0;
@@ -201,13 +209,23 @@ export default function GameCanvas() {
     if (!engineRef.current.networkNodes) generateNetwork();
     window.addEventListener('resize', resize);
 
-    const move = (e) => {
+    // Coordinate handler common logic
+    const updatePointerCoords = (clientX, clientY) => {
       const r = canvas.getBoundingClientRect();
-      engineRef.current.mouse.x = e.clientX - r.left;
-      engineRef.current.mouse.y = e.clientY - r.top;
+      engineRef.current.mouse.x = clientX - r.left;
+      engineRef.current.mouse.y = clientY - r.top;
     };
+
+    const move = (e) => updatePointerCoords(e.clientX, e.clientY);
     
-    const down = () => { 
+    // FIX: Combined Touch Move capability 
+    const touchMove = (e) => {
+      if (e.touches && e.touches[0]) {
+        updatePointerCoords(e.touches[0].clientX, e.touches[0].clientY);
+      }
+    };
+
+    const handleActionDown = () => {
       const state = engineRef.current;
       if (runState === 'BOOT') {
         setRunState('PLAYING');
@@ -233,10 +251,28 @@ export default function GameCanvas() {
       }
     };
     
+    const down = (e) => {
+      updatePointerCoords(e.clientX, e.clientY);
+      handleActionDown();
+    };
+
+    // FIX: Combined Touch Start capability
+    const touchStart = (e) => {
+      if (e.touches && e.touches[0]) {
+        updatePointerCoords(e.touches[0].clientX, e.touches[0].clientY);
+      }
+      handleActionDown();
+    };
+
     const up = () => { engineRef.current.mouse.isDown = false; };
 
     canvas.addEventListener('mousemove', move);
     canvas.addEventListener('mousedown', down);
+    
+    // FIX: Core event connection mappings for touch environments
+    canvas.addEventListener('touchstart', touchStart, { passive: true });
+    canvas.addEventListener('touchmove', touchMove, { passive: true });
+    canvas.addEventListener('touchend', up, { passive: true });
     window.addEventListener('mouseup', up);
 
     const spawnEnemy = (isBoss = false) => {
@@ -406,6 +442,7 @@ export default function GameCanvas() {
         return;
       }
 
+      // FIX: Detailed Multi-line interactive instruction boot screen layout
       if (runState === 'BOOT') {
         ctx.fillStyle = '#020617';
         ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -414,11 +451,17 @@ export default function GameCanvas() {
         ctx.fillStyle = '#6366f1';
         ctx.font = 'bold 16px monospace';
         ctx.textAlign = 'center';
-        ctx.fillText("▲ CORE DEFENSE INITIALIZATION", cX, cY - 10);
+        ctx.fillText("▲ NEURAL NET DEFENSE ENGINE", cX, cY - 45);
         
-        ctx.fillStyle = 'rgba(148, 163, 184, 0.6)';
-        ctx.font = '11px monospace';
-        ctx.fillText("CLICK TO START DEFENSE ARRAY", cX, cY + 20);
+        ctx.fillStyle = '#e2e8f0';
+        ctx.font = '10px monospace';
+        ctx.fillText("• HOLD POINTER to deploy directional streams", cX, cY - 15);
+        ctx.fillText("• BLOCK adversarial nodes before core extraction", cX, cY);
+        ctx.fillText("• HARVEST telemetry points to stabilize gradient systems", cX, cY + 15);
+
+        ctx.fillStyle = '#10b981';
+        ctx.font = 'bold 11px monospace';
+        ctx.fillText("➔ CLICK OR TOUCH WINDOW TO REBOOT CORRUPT STACK", cX, cY + 50);
         
         animId = requestAnimationFrame(loop);
         return;
@@ -786,6 +829,11 @@ export default function GameCanvas() {
       window.removeEventListener('resize', resize);
       canvas.removeEventListener('mousemove', move);
       canvas.removeEventListener('mousedown', down);
+      
+      // FIX: Clean up touch events on unmount
+      canvas.removeEventListener('touchstart', touchStart);
+      canvas.removeEventListener('touchmove', touchMove);
+      canvas.removeEventListener('touchend', up);
       window.removeEventListener('mouseup', up);
     };
   }, [phase, runState, upgradeState, integrity]);
@@ -819,7 +867,7 @@ export default function GameCanvas() {
           </div>
         </div>
 
-        <canvas ref={canvasRef} className="w-full h-full block cursor-crosshair object-cover" />
+        <canvas ref={canvasRef} className="w-full h-full block cursor-crosshair object-cover touch-none" />
 
         {runState === 'COMMANDER_TERMINAL' && (
           <div className="absolute inset-0 bg-slate-950/90 backdrop-blur-sm flex flex-col justify-center items-center p-6 z-50">
